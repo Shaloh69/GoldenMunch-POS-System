@@ -1,24 +1,16 @@
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
-  name: "Next.js + HeroUI",
-  description: "Make beautiful websites regardless of your design experience.",
+  name: "Golden Munch Kiosk",
+  description: "Freshly baked goods and delicious treats, made with love.",
   navItems: [
     {
       label: "Home",
-      href: "/",
+      href: "/idle",
     },
     {
-      label: "Docs",
-      href: "/docs",
-    },
-    {
-      label: "Pricing",
-      href: "/pricing",
-    },
-    {
-      label: "Blog",
-      href: "/blog",
+      label: "Menu",
+      href: "/menu",
     },
     {
       label: "About",
@@ -27,43 +19,25 @@ export const siteConfig = {
   ],
   navMenuItems: [
     {
-      label: "Profile",
-      href: "/profile",
+      label: "Menu",
+      href: "/menu",
     },
     {
-      label: "Dashboard",
-      href: "/dashboard",
+      label: "Home",
+      href: "/idle",
     },
     {
-      label: "Projects",
-      href: "/projects",
+      label: "About",
+      href: "/about",
     },
     {
-      label: "Team",
-      href: "/team",
-    },
-    {
-      label: "Calendar",
-      href: "/calendar",
-    },
-    {
-      label: "Settings",
-      href: "/settings",
-    },
-    {
-      label: "Help & Feedback",
-      href: "/help-feedback",
-    },
-    {
-      label: "Logout",
-      href: "/logout",
+      label: "Contact",
+      href: "/contact",
     },
   ],
   links: {
-    github: "https://github.com/heroui-inc/heroui",
-    twitter: "https://twitter.com/hero_ui",
-    docs: "https://heroui.com",
-    discord: "https://discord.gg/9b6yyZKmH4",
-    sponsor: "https://patreon.com/jrgarciadev",
+    github: "https://github.com/golden-munch/kiosk",
+    docs: "https://golden-munch.com/docs",
+    contact: "mailto:hello@golden-munch.com",
   },
 };
