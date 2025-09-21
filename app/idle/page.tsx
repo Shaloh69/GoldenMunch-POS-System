@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@heroui/button';
@@ -14,10 +14,8 @@ interface Cake {
 interface PacMan {
   x: number;
   y: number;
-  targetX: number;
-  targetY: number;
   speed: number;
-  direction: number; // angle in radians
+  direction: number;
   mouthOpen: boolean;
   size: number;
 }
@@ -32,61 +30,147 @@ interface Particle {
   color: string;
 }
 
+interface GoldenMunchEffect {
+  active: boolean;
+  alpha: number;
+  scale: number;
+  duration: number;
+}
+
+// Game state stored in refs to prevent React re-renders
+interface GameState {
+  cakes: Cake[];
+  particles: Particle[];
+  pacman: PacMan;
+  score: number;
+  lastMouthToggle: number;
+  lastCakeSpawn: number;
+  lastScoreUpdate: number;
+  lastGoldenMunchCheck: number;
+  goldenMunchEffect: GoldenMunchEffect;
+  isRunning: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
+}
+
 export default function IdlePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
-  const lastMouthToggle = useRef<number>(0);
-  const lastCakeSpawn = useRef<number>(0);
-  const [cakes, setCakes] = useState<Cake[]>([]);
-  const [particles, setParticles] = useState<Particle[]>([]);
-  const [pacman, setPacman] = useState<PacMan>({
-    x: 100,
-    y: 100,
-    targetX: 100,
-    targetY: 100,
-    speed: 3,
-    direction: 0,
-    mouthOpen: true,
-    size: 35
+  
+  // Game state in ref to prevent re-renders
+  const gameStateRef = useRef<GameState>({
+    cakes: [],
+    particles: [],
+    pacman: {
+      x: 200,
+      y: 200,
+      speed: 2.8,
+      direction: 0,
+      mouthOpen: true,
+      size: 40
+    },
+    score: 0,
+    lastMouthToggle: 0,
+    lastCakeSpawn: 0,
+    lastScoreUpdate: 0,
+    lastGoldenMunchCheck: 0,
+    goldenMunchEffect: {
+      active: false,
+      alpha: 0,
+      scale: 1,
+      duration: 0
+    },
+    isRunning: true,
+    canvasWidth: 0,
+    canvasHeight: 0
   });
-  const [score, setScore] = useState(0);
+  
+  // Minimal React state - only for UI updates
+  const [displayScore, setDisplayScore] = useState(0);
+  const [showStartButton, setShowStartButton] = useState(true);
+  const [cakeCount, setCakeCount] = useState(0);
   const [isActive, setIsActive] = useState(true);
-  const [gameTime, setGameTime] = useState(0);
 
   const cakeEmojis = ['🍰', '🧁', '🎂', '🍪', '🥧', '🍩', '🧄', '🍮'];
 
-  // Create eating particles
-  const createEatingParticles = useCallback((x: number, y: number) => {
-    const newParticles: Particle[] = [];
-    for (let i = 0; i < 8; i++) {
-      newParticles.push({
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
-        life: 30,
-        maxLife: 30,
-        color: `hsl(${Math.random() * 60 + 30}, 70%, 60%)` // Golden colors
-      });
-    }
-    setParticles(prev => [...prev, ...newParticles]);
-  }, []);
-
-  // Generate random cake at safe distance from Pac-Man
-  const generateCake = useCallback(() => {
+  // Initialize canvas to full screen
+  const initializeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    
+    const dpr = window.devicePixelRatio || 1;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    
+    // Set canvas size
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.scale(dpr, dpr);
+      ctx.imageSmoothingEnabled = true;
+    }
+    
+    // Update game state with canvas dimensions
+    const gameState = gameStateRef.current;
+    gameState.canvasWidth = width;
+    gameState.canvasHeight = height;
+    
+    // Reset Pac-Man position to center if needed
+    if (gameState.pacman.x === 200 && gameState.pacman.y === 200) {
+      gameState.pacman.x = width / 2;
+      gameState.pacman.y = height / 2;
+    }
+    
+    console.log('Canvas initialized:', width, 'x', height);
+  }, []);
+
+  // Trigger Golden Munch effect
+  const triggerGoldenMunchEffect = useCallback(() => {
+    const gameState = gameStateRef.current;
+    gameState.goldenMunchEffect = {
+      active: true,
+      alpha: 1,
+      scale: 0.2,
+      duration: 240 // ~4 seconds at 60fps
+    };
+    console.log('Golden Munch effect triggered!');
+  }, []);
+
+  // Create eating particles
+  const createEatingParticles = useCallback((x: number, y: number) => {
+    const gameState = gameStateRef.current;
+    for (let i = 0; i < 10; i++) {
+      gameState.particles.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 12,
+        vy: (Math.random() - 0.5) * 12,
+        life: 60,
+        maxLife: 60,
+        color: `hsl(${Math.random() * 60 + 30}, 90%, 65%)`
+      });
+    }
+  }, []);
+
+  // Generate random cake
+  const generateCake = useCallback(() => {
+    const gameState = gameStateRef.current;
+    if (!gameState.canvasWidth || !gameState.canvasHeight) return;
 
     let attempts = 0;
     let x, y;
     
     do {
-      x = Math.random() * (canvas.width - 80) + 40;
-      y = Math.random() * (canvas.height - 80) + 40;
+      x = Math.random() * (gameState.canvasWidth - 120) + 60;
+      y = Math.random() * (gameState.canvasHeight - 120) + 60;
       attempts++;
     } while (
-      attempts < 20 && 
-      Math.sqrt(Math.pow(x - pacman.x, 2) + Math.pow(y - pacman.y, 2)) < 100
+      attempts < 15 && 
+      Math.sqrt(Math.pow(x - gameState.pacman.x, 2) + Math.pow(y - gameState.pacman.y, 2)) < 150
     );
 
     const newCake: Cake = {
@@ -94,115 +178,118 @@ export default function IdlePage() {
       y,
       emoji: cakeEmojis[Math.floor(Math.random() * cakeEmojis.length)],
       id: Date.now() + Math.random(),
-      size: 30 + Math.random() * 15 // Variable cake sizes
+      size: 32 + Math.random() * 20
     };
 
-    setCakes(prev => [...prev, newCake]);
-  }, [pacman.x, pacman.y]);
+    gameState.cakes.push(newCake);
+    console.log('Cake spawned at:', x, y);
+  }, []);
 
-  // Find nearest cake to Pac-Man
-  const findNearestCake = useCallback((pacmanPos: PacMan, cakeList: Cake[]) => {
-    if (cakeList.length === 0) return null;
+  // Find nearest cake
+  const findNearestCake = useCallback((pacman: PacMan, cakes: Cake[]) => {
+    if (cakes.length === 0) return null;
 
-    let nearest = cakeList[0];
+    let nearest = cakes[0];
     let minDistance = Math.sqrt(
-      Math.pow(pacmanPos.x - nearest.x, 2) + Math.pow(pacmanPos.y - nearest.y, 2)
+      Math.pow(pacman.x - nearest.x, 2) + Math.pow(pacman.y - nearest.y, 2)
     );
 
-    for (let i = 1; i < cakeList.length; i++) {
+    for (let i = 1; i < cakes.length; i++) {
       const distance = Math.sqrt(
-        Math.pow(pacmanPos.x - cakeList[i].x, 2) + Math.pow(pacmanPos.y - cakeList[i].y, 2)
+        Math.pow(pacman.x - cakes[i].x, 2) + Math.pow(pacman.y - cakes[i].y, 2)
       );
       if (distance < minDistance) {
         minDistance = distance;
-        nearest = cakeList[i];
+        nearest = cakes[i];
       }
     }
 
     return nearest;
   }, []);
 
-  // Check collision between Pac-Man and cake
-  const checkCollision = useCallback((pacmanPos: PacMan, cake: Cake) => {
+  // Check collision
+  const checkCollision = useCallback((pacman: PacMan, cake: Cake) => {
     const distance = Math.sqrt(
-      Math.pow(pacmanPos.x - cake.x, 2) + Math.pow(pacmanPos.y - cake.y, 2)
+      Math.pow(pacman.x - cake.x, 2) + Math.pow(pacman.y - cake.y, 2)
     );
-    return distance < (pacmanPos.size + cake.size) / 2;
+    return distance < (pacman.size + cake.size) / 2.5;
   }, []);
 
-  // Draw Pac-Man with authentic sprite-like appearance
+  // Draw Pac-Man
   const drawPacMan = useCallback((ctx: CanvasRenderingContext2D, pacman: PacMan) => {
+    // Trail effect
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#FFDD44';
+    for (let i = 1; i <= 4; i++) {
+      const trailX = pacman.x - Math.cos(pacman.direction) * i * 18;
+      const trailY = pacman.y - Math.sin(pacman.direction) * i * 18;
+      ctx.beginPath();
+      ctx.arc(trailX, trailY, (pacman.size / 2) * (1 - i * 0.2), 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Main Pac-Man
     ctx.save();
     ctx.translate(pacman.x, pacman.y);
     ctx.rotate(pacman.direction);
     
-    // Pac-Man body (golden yellow)
+    // Shadow
+    ctx.fillStyle = '#CC9900';
+    ctx.beginPath();
+    if (pacman.mouthOpen) {
+      ctx.arc(3, 3, pacman.size / 2, 0.3 * Math.PI, 1.7 * Math.PI);
+      ctx.lineTo(3, 3);
+    } else {
+      ctx.arc(3, 3, pacman.size / 2, 0, 2 * Math.PI);
+    }
+    ctx.fill();
+    
+    // Body
     ctx.fillStyle = '#FFDD44';
     ctx.beginPath();
-    
     if (pacman.mouthOpen) {
-      // Mouth open - classic Pac-Man shape
-      ctx.arc(0, 0, pacman.size / 2, 0.2 * Math.PI, 1.8 * Math.PI);
-      ctx.lineTo(0, 0);
-    } else {
-      // Mouth closed - full circle
-      ctx.arc(0, 0, pacman.size / 2, 0, 2 * Math.PI);
-    }
-    
-    ctx.fill();
-    
-    // Add shadow/depth
-    ctx.fillStyle = '#E6C200';
-    ctx.beginPath();
-    ctx.arc(2, 2, pacman.size / 2, 0, 2 * Math.PI);
-    ctx.fill();
-    
-    // Pac-Man body outline
-    ctx.strokeStyle = '#CC9900';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    if (pacman.mouthOpen) {
-      ctx.arc(0, 0, pacman.size / 2, 0.2 * Math.PI, 1.8 * Math.PI);
+      ctx.arc(0, 0, pacman.size / 2, 0.3 * Math.PI, 1.7 * Math.PI);
       ctx.lineTo(0, 0);
     } else {
       ctx.arc(0, 0, pacman.size / 2, 0, 2 * Math.PI);
     }
+    ctx.fill();
+    
+    // Outline
+    ctx.strokeStyle = '#E6C200';
+    ctx.lineWidth = 3;
     ctx.stroke();
     
     // Eye
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.arc(-5, -8, 3, 0, 2 * Math.PI);
+    ctx.arc(-8, -14, 6, 0, 2 * Math.PI);
     ctx.fill();
     
     // Eye highlight
     ctx.fillStyle = '#FFF';
     ctx.beginPath();
-    ctx.arc(-4, -9, 1, 0, 2 * Math.PI);
+    ctx.arc(-6, -16, 2.5, 0, 2 * Math.PI);
     ctx.fill();
     
     ctx.restore();
   }, []);
 
-  // Draw cake with glow effect
+  // Draw cake
   const drawCake = useCallback((ctx: CanvasRenderingContext2D, cake: Cake) => {
-    // Glow effect
     ctx.save();
     ctx.shadowColor = '#F9A03F';
     ctx.shadowBlur = 15;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    
-    // Cake emoji with enhanced size
     ctx.font = `${cake.size}px Arial`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(cake.emoji, cake.x, cake.y);
-    
     ctx.restore();
   }, []);
 
-  // Draw particle effects
+  // Draw particles
   const drawParticles = useCallback((ctx: CanvasRenderingContext2D, particles: Particle[]) => {
     particles.forEach(particle => {
       const alpha = particle.life / particle.maxLife;
@@ -210,201 +297,214 @@ export default function IdlePage() {
       ctx.globalAlpha = alpha;
       ctx.fillStyle = particle.color;
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, 3 * alpha, 0, 2 * Math.PI);
+      ctx.arc(particle.x, particle.y, 6 * alpha, 0, 2 * Math.PI);
       ctx.fill();
       ctx.restore();
     });
   }, []);
 
-  // Main draw function
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
+  // Draw Golden Munch effect
+  const drawGoldenMunchEffect = useCallback((ctx: CanvasRenderingContext2D, effect: GoldenMunchEffect, gameState: GameState) => {
+    if (!effect.active) return;
 
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw background with grid pattern (classic Pac-Man style)
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, '#0B1426');
-    gradient.addColorStop(1, '#1E3A5F');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Draw grid dots for authentic feel
-    ctx.fillStyle = 'rgba(249, 160, 63, 0.1)';
-    for (let x = 20; x < canvas.width; x += 40) {
-      for (let y = 20; y < canvas.height; y += 40) {
-        ctx.beginPath();
-        ctx.arc(x, y, 1, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    }
-
-    // Draw border
-    ctx.strokeStyle = '#F9A03F';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
-
-    // Draw cakes
-    cakes.forEach(cake => drawCake(ctx, cake));
-
-    // Draw particles
-    drawParticles(ctx, particles);
-
-    // Draw Pac-Man
-    drawPacMan(ctx, pacman);
-
-    // Draw trail effect behind Pac-Man
     ctx.save();
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#FFDD44';
-    for (let i = 1; i <= 3; i++) {
-      const trailX = pacman.x - Math.cos(pacman.direction) * i * 8;
-      const trailY = pacman.y - Math.sin(pacman.direction) * i * 8;
-      ctx.beginPath();
-      ctx.arc(trailX, trailY, (pacman.size / 2) * (1 - i * 0.2), 0, 2 * Math.PI);
-      ctx.fill();
-    }
+    ctx.globalAlpha = effect.alpha;
+    
+    // Background flash
+    ctx.fillStyle = 'rgba(249, 160, 63, 0.5)';
+    ctx.fillRect(0, 0, gameState.canvasWidth, gameState.canvasHeight);
+    
+    // Golden Munch text
+    const centerX = gameState.canvasWidth / 2;
+    const centerY = gameState.canvasHeight / 2;
+    
+    ctx.translate(centerX, centerY);
+    ctx.scale(effect.scale, effect.scale);
+    
+    // Text shadow
+    ctx.fillStyle = '#B8860B';
+    ctx.font = 'bold 80px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GOLDEN MUNCH', 6, 6);
+    
+    // Main text
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText('GOLDEN MUNCH', 0, 0);
+    
+    // Text outline
+    ctx.strokeStyle = '#CC6600';
+    ctx.lineWidth = 8;
+    ctx.strokeText('GOLDEN MUNCH', 0, 0);
+    
     ctx.restore();
-  }, [cakes, particles, pacman, drawCake, drawParticles, drawPacMan]);
-
-  // Update particles
-  const updateParticles = useCallback(() => {
-    setParticles(prev => 
-      prev.map(particle => ({
-        ...particle,
-        x: particle.x + particle.vx,
-        y: particle.y + particle.vy,
-        vx: particle.vx * 0.98,
-        vy: particle.vy * 0.98,
-        life: particle.life - 1
-      })).filter(particle => particle.life > 0)
-    );
   }, []);
 
-  // Update game state
+  // Optimized game update
   const updateGame = useCallback((currentTime: number) => {
-    // Toggle Pac-Man mouth every 150ms for authentic animation
-    if (currentTime - lastMouthToggle.current > 150) {
-      setPacman(prev => ({
-        ...prev,
-        mouthOpen: !prev.mouthOpen
-      }));
-      lastMouthToggle.current = currentTime;
+    const gameState = gameStateRef.current;
+    if (!gameState.isRunning) return;
+
+    // Mouth animation (every 120ms)
+    if (currentTime - gameState.lastMouthToggle > 120) {
+      gameState.pacman.mouthOpen = !gameState.pacman.mouthOpen;
+      gameState.lastMouthToggle = currentTime;
     }
 
-    // Spawn cakes every 2-4 seconds randomly
-    if (currentTime - lastCakeSpawn.current > (2000 + Math.random() * 2000)) {
-      if (cakes.length < 8) { // Max 8 cakes on screen
+    // Spawn cakes (every 1.5-3 seconds)
+    if (currentTime - gameState.lastCakeSpawn > (1500 + Math.random() * 1500)) {
+      if (gameState.cakes.length < 15) {
         generateCake();
-        lastCakeSpawn.current = currentTime;
+        gameState.lastCakeSpawn = currentTime;
       }
     }
 
     // Update Pac-Man movement
-    setPacman(prevPacman => {
-      const canvas = canvasRef.current;
-      if (!canvas) return prevPacman;
-
-      const currentCakes = cakes;
-      const nearestCake = findNearestCake(prevPacman, currentCakes);
+    const nearestCake = findNearestCake(gameState.pacman, gameState.cakes);
+    
+    if (nearestCake) {
+      const dx = nearestCake.x - gameState.pacman.x;
+      const dy = nearestCake.y - gameState.pacman.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
       
-      if (nearestCake) {
-        // Calculate direction to nearest cake
-        const dx = nearestCake.x - prevPacman.x;
-        const dy = nearestCake.y - prevPacman.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+      if (distance > 0) {
+        const targetDirection = Math.atan2(dy, dx);
+        let currentDirection = gameState.pacman.direction;
+        let directionDiff = targetDirection - currentDirection;
         
-        if (distance > 0) {
-          // Calculate new direction angle
-          const targetDirection = Math.atan2(dy, dx);
-          
-          // Smooth direction change
-          let currentDirection = prevPacman.direction;
-          let directionDiff = targetDirection - currentDirection;
-          
-          // Handle angle wrapping
-          if (directionDiff > Math.PI) directionDiff -= 2 * Math.PI;
-          if (directionDiff < -Math.PI) directionDiff += 2 * Math.PI;
-          
-          // Smooth rotation
-          const rotationSpeed = 0.15;
-          currentDirection += directionDiff * rotationSpeed;
+        // Handle angle wrapping
+        if (directionDiff > Math.PI) directionDiff -= 2 * Math.PI;
+        if (directionDiff < -Math.PI) directionDiff += 2 * Math.PI;
+        
+        currentDirection += directionDiff * 0.10; // Smooth turning
 
-          // Move Pac-Man
-          const newX = prevPacman.x + Math.cos(currentDirection) * prevPacman.speed;
-          const newY = prevPacman.y + Math.sin(currentDirection) * prevPacman.speed;
+        const newX = gameState.pacman.x + Math.cos(currentDirection) * gameState.pacman.speed;
+        const newY = gameState.pacman.y + Math.sin(currentDirection) * gameState.pacman.speed;
 
-          // Keep within bounds
-          const boundedX = Math.max(prevPacman.size, Math.min(canvas.width - prevPacman.size, newX));
-          const boundedY = Math.max(prevPacman.size, Math.min(canvas.height - prevPacman.size, newY));
+        // Keep within bounds
+        gameState.pacman.x = Math.max(gameState.pacman.size, Math.min(gameState.canvasWidth - gameState.pacman.size, newX));
+        gameState.pacman.y = Math.max(gameState.pacman.size, Math.min(gameState.canvasHeight - gameState.pacman.size, newY));
+        gameState.pacman.direction = currentDirection;
 
-          const newPacman = {
-            ...prevPacman,
-            x: boundedX,
-            y: boundedY,
-            direction: currentDirection,
-            targetX: nearestCake.x,
-            targetY: nearestCake.y
-          };
-
-          // Check for collision
-          if (checkCollision(newPacman, nearestCake)) {
-            setCakes(prev => prev.filter(cake => cake.id !== nearestCake.id));
-            setScore(prev => prev + Math.floor(nearestCake.size / 3)); // Score based on cake size
-            createEatingParticles(nearestCake.x, nearestCake.y);
-          }
-
-          return newPacman;
+        // Check collision
+        if (checkCollision(gameState.pacman, nearestCake)) {
+          gameState.cakes = gameState.cakes.filter(cake => cake.id !== nearestCake.id);
+          gameState.score += Math.floor(nearestCake.size / 2) + 10;
+          createEatingParticles(nearestCake.x, nearestCake.y);
+          console.log('Cake eaten! Score:', gameState.score);
         }
-      } else {
-        // No cakes, wander randomly
-        if (Math.random() < 0.02) { // 2% chance to change direction
-          return {
-            ...prevPacman,
-            direction: Math.random() * 2 * Math.PI
-          };
-        }
-        
-        // Continue in current direction
-        const newX = prevPacman.x + Math.cos(prevPacman.direction) * (prevPacman.speed * 0.5);
-        const newY = prevPacman.y + Math.sin(prevPacman.direction) * (prevPacman.speed * 0.5);
-        
-        // Bounce off walls
-        let newDirection = prevPacman.direction;
-        let boundedX = newX;
-        let boundedY = newY;
-        
-        if (newX <= prevPacman.size || newX >= canvas.width - prevPacman.size) {
-          newDirection = Math.PI - newDirection;
-          boundedX = Math.max(prevPacman.size, Math.min(canvas.width - prevPacman.size, newX));
-        }
-        if (newY <= prevPacman.size || newY >= canvas.height - prevPacman.size) {
-          newDirection = -newDirection;
-          boundedY = Math.max(prevPacman.size, Math.min(canvas.height - prevPacman.size, newY));
-        }
-        
-        return {
-          ...prevPacman,
-          x: boundedX,
-          y: boundedY,
-          direction: newDirection
-        };
+      }
+    } else {
+      // Wander randomly
+      if (Math.random() < 0.01) {
+        gameState.pacman.direction = Math.random() * 2 * Math.PI;
       }
       
-      return prevPacman;
-    });
+      const newX = gameState.pacman.x + Math.cos(gameState.pacman.direction) * gameState.pacman.speed * 0.8;
+      const newY = gameState.pacman.y + Math.sin(gameState.pacman.direction) * gameState.pacman.speed * 0.8;
+      
+      // Bounce off walls
+      if (newX <= gameState.pacman.size || newX >= gameState.canvasWidth - gameState.pacman.size) {
+        gameState.pacman.direction = Math.PI - gameState.pacman.direction;
+      }
+      if (newY <= gameState.pacman.size || newY >= gameState.canvasHeight - gameState.pacman.size) {
+        gameState.pacman.direction = -gameState.pacman.direction;
+      }
+      
+      gameState.pacman.x = Math.max(gameState.pacman.size, Math.min(gameState.canvasWidth - gameState.pacman.size, newX));
+      gameState.pacman.y = Math.max(gameState.pacman.size, Math.min(gameState.canvasHeight - gameState.pacman.size, newY));
+    }
 
-    // Update particles
-    updateParticles();
+    // Update particles efficiently
+    gameState.particles = gameState.particles.map(particle => ({
+      ...particle,
+      x: particle.x + particle.vx,
+      y: particle.y + particle.vy,
+      vx: particle.vx * 0.95,
+      vy: particle.vy * 0.95,
+      life: particle.life - 1
+    })).filter(particle => particle.life > 0);
+
+    // Check for Golden Munch trigger (every 1000 points) - check every 2 seconds
+    if (currentTime - gameState.lastGoldenMunchCheck > 2000) {
+      const currentThousands = Math.floor(gameState.score / 1000);
+      const lastThousands = Math.floor(displayScore / 1000);
+      
+      if (currentThousands > lastThousands && currentThousands > 0) {
+        triggerGoldenMunchEffect();
+      }
+      
+      gameState.lastGoldenMunchCheck = currentTime;
+    }
+
+    // Update Golden Munch effect
+    if (gameState.goldenMunchEffect.active) {
+      gameState.goldenMunchEffect.duration--;
+      gameState.goldenMunchEffect.scale = Math.min(1.3, gameState.goldenMunchEffect.scale + 0.01);
+      
+      if (gameState.goldenMunchEffect.duration <= 80) {
+        gameState.goldenMunchEffect.alpha = gameState.goldenMunchEffect.duration / 80;
+      }
+      
+      if (gameState.goldenMunchEffect.duration <= 0) {
+        gameState.goldenMunchEffect.active = false;
+      }
+    }
+
+    // Update React state only every 1 second
+    if (currentTime - gameState.lastScoreUpdate > 1000) {
+      setDisplayScore(gameState.score);
+      setCakeCount(gameState.cakes.length);
+      gameState.lastScoreUpdate = currentTime;
+    }
+  }, [generateCake, findNearestCake, checkCollision, createEatingParticles, triggerGoldenMunchEffect, displayScore]);
+
+  // Optimized draw function
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    const gameState = gameStateRef.current;
+    if (!canvas || !ctx || !gameState.isRunning) return;
+
+    // Clear and draw background
+    ctx.clearRect(0, 0, gameState.canvasWidth, gameState.canvasHeight);
     
-    // Update game time
-    setGameTime(prev => prev + 16); // ~60fps
-  }, [cakes, findNearestCake, checkCollision, generateCake, createEatingParticles, updateParticles]);
+    const gradient = ctx.createLinearGradient(0, 0, gameState.canvasWidth, gameState.canvasHeight);
+    gradient.addColorStop(0, '#0B1426');
+    gradient.addColorStop(1, '#1E3A5F');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, gameState.canvasWidth, gameState.canvasHeight);
 
-  // Game loop
+    // Draw border
+    ctx.strokeStyle = '#F9A03F';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(4, 4, gameState.canvasWidth - 8, gameState.canvasHeight - 8);
+
+    // Draw game elements
+    gameState.cakes.forEach(cake => drawCake(ctx, cake));
+    drawParticles(ctx, gameState.particles);
+    drawPacMan(ctx, gameState.pacman);
+
+    // Draw Golden Munch effect
+    drawGoldenMunchEffect(ctx, gameState.goldenMunchEffect, gameState);
+
+    // Draw minimal UI (only score)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(20, 20, 250, 80);
+    ctx.strokeStyle = '#F9A03F';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(20, 20, 250, 80);
+    
+    ctx.fillStyle = '#F9A03F';
+    ctx.font = 'bold 32px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Score: ${displayScore.toLocaleString()}`, 35, 60);
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.fillText(`Cakes: ${cakeCount}`, 35, 85);
+  }, [drawCake, drawParticles, drawPacMan, drawGoldenMunchEffect, displayScore, cakeCount]);
+
+  // Optimized game loop
   const gameLoop = useCallback((currentTime: number) => {
     if (!isActive) return;
     
@@ -417,120 +517,89 @@ export default function IdlePage() {
   useEffect(() => {
     if (!isActive) return;
 
-    // Generate initial cakes
-    for (let i = 0; i < 4; i++) {
-      setTimeout(() => generateCake(), i * 800);
+    console.log('Initializing idle page game...');
+    initializeCanvas();
+    
+    // Hide start button after 4 seconds
+    const buttonTimer = setTimeout(() => setShowStartButton(false), 4000);
+
+    // Generate initial cakes with delay
+    const cakeTimers: NodeJS.Timeout[] = [];
+    for (let i = 0; i < 8; i++) {
+      const timer = setTimeout(() => generateCake(), i * 1000);
+      cakeTimers.push(timer);
     }
 
     // Start game loop
     animationRef.current = requestAnimationFrame(gameLoop);
 
+    // Handle resize efficiently
+    const handleResize = () => {
+      console.log('Resizing canvas...');
+      initializeCanvas();
+    };
+    
+    window.addEventListener('resize', handleResize);
+
     return () => {
+      console.log('Cleaning up idle page game...');
+      clearTimeout(buttonTimer);
+      cakeTimers.forEach(timer => clearTimeout(timer));
+      window.removeEventListener('resize', handleResize);
+      gameStateRef.current.isRunning = false;
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isActive, generateCake, gameLoop]);
+  }, [isActive, generateCake, gameLoop, initializeCanvas]);
 
-  const handleStartOrder = () => {
+  const handleStartOrder = useCallback(() => {
+    console.log('Starting order...');
+    gameStateRef.current.isRunning = false;
     setIsActive(false);
-    // Navigate to main menu
     window.location.href = '/';
-  };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-indigo-900 flex flex-col items-center justify-center p-8">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-6xl font-bold text-golden-orange mb-4 animate-pulse-slow">
-          🍰 Golden Munch 🍰
-        </h1>
-        <p className="text-2xl text-cream-white/90 mb-2">
-          Watch Pac-Man hunt for delicious treats!
-        </p>
-        <p className="text-lg text-cream-white/70">
-          Touch anywhere to start your order
-        </p>
-      </div>
-
-      {/* Game Canvas */}
-      <div className="relative mb-8">
-        <canvas
-          ref={canvasRef}
-          width={900}
-          height={500}
-          className="border-4 border-golden-orange rounded-2xl shadow-2xl cursor-pointer bg-gradient-to-br from-gray-900 to-blue-900"
-          onClick={handleStartOrder}
-        />
-        
-        {/* Game UI Overlay */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
-          {/* Score Display */}
-          <div className="bg-black/80 text-golden-orange px-6 py-3 rounded-lg font-bold text-2xl shadow-lg border-2 border-golden-orange/50">
-            Score: {score.toLocaleString()}
-          </div>
-          
-          {/* Cake Count */}
-          <div className="bg-black/80 text-cream-white px-4 py-2 rounded-lg font-semibold text-lg shadow-lg border-2 border-golden-orange/50">
-            🍰 Cakes: {cakes.length}
-          </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="absolute bottom-4 left-4 bg-black/90 text-cream-white px-6 py-3 rounded-lg text-lg font-semibold shadow-lg border-2 border-golden-orange/50">
-          🟡 Pac-Man is hunting for Golden Munch treats!
-        </div>
-        
-        {/* Game Time */}
-        <div className="absolute bottom-4 right-4 bg-black/80 text-golden-orange px-4 py-2 rounded-lg font-mono text-sm shadow-lg border-2 border-golden-orange/50">
-          {Math.floor(gameTime / 1000)}s
-        </div>
-      </div>
-
-      {/* Call to Action */}
-      <Button
-        size="lg"
-        className="bg-golden-orange hover:bg-deep-amber text-chocolate-brown font-bold text-2xl px-12 py-6 rounded-2xl shadow-2xl transform transition-all duration-300 hover:scale-105 animate-pulse-slow mb-6"
+    <div className="fixed inset-0 bg-gray-900 overflow-hidden">
+      {/* Full Screen Canvas */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 cursor-pointer"
         onClick={handleStartOrder}
-      >
-        🛒 Start Your Order 🛒
-      </Button>
-
-      {/* Game Instructions */}
-      <div className="text-center max-w-2xl">
-        <div className="bg-black/50 backdrop-blur-sm border-2 border-golden-orange/30 rounded-xl p-6 mb-6">
-          <h3 className="text-xl font-bold text-golden-orange mb-3">How to Play</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-cream-white/80">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🟡</span>
-              <span>Pac-Man automatically hunts cakes</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">🍰</span>
-              <span>Cakes spawn randomly on screen</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">💫</span>
-              <span>Watch particles when cakes are eaten</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">👆</span>
-              <span>Touch anywhere to start ordering</span>
-            </div>
+        style={{ 
+          touchAction: 'none',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          width: '100vw',
+          height: '100vh',
+          display: 'block'
+        }}
+      />
+      
+      {/* Start Button Overlay */}
+      {showStartButton && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+          <div className="bg-black/95 backdrop-blur-sm rounded-3xl p-8 text-center border-4 border-golden-orange pointer-events-auto animate-pulse-slow">
+            <h1 className="text-4xl md:text-6xl font-bold text-golden-orange mb-4">
+              🍰 Golden Munch 🍰
+            </h1>
+            <p className="text-lg md:text-xl text-cream-white mb-6">
+              Watch Pac-Man hunt for delicious treats!
+            </p>
+            <p className="text-md text-cream-white/80 mb-6">
+              Touch anywhere to start ordering
+            </p>
+            <Button
+              size="lg"
+              className="bg-golden-orange hover:bg-deep-amber text-chocolate-brown font-bold text-xl px-8 py-4"
+              onClick={handleStartOrder}
+            >
+              🛒 Start Order
+            </Button>
           </div>
         </div>
-        
-        <p className="text-cream-white/70 text-lg">
-          Freshly baked daily • Made with love • Fast service
-        </p>
-        <div className="flex gap-4 justify-center mt-4 text-3xl">
-          <span className="animate-float" style={{ animationDelay: '0s' }}>🥐</span>
-          <span className="animate-float" style={{ animationDelay: '0.5s' }}>☕</span>
-          <span className="animate-float" style={{ animationDelay: '1s' }}>🍪</span>
-          <span className="animate-float" style={{ animationDelay: '1.5s' }}>🧁</span>
-          <span className="animate-float" style={{ animationDelay: '2s' }}>🥧</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

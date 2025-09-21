@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Navbar as HeroUINavbar,
   NavbarContent,
@@ -9,16 +9,31 @@ import {
 } from "@heroui/navbar";
 import { Button } from "@heroui/button";
 import { Link } from "@heroui/link";
-import { Badge } from "@heroui/badge";
 import NextLink from "next/link";
-import clsx from "clsx";
 
 export const KioskNavbar = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [idleTimer, setIdleTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // Memoize formatted time to prevent unnecessary recalculations
+  const formattedTime = useMemo(() => ({
+    time: currentTime.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }),
+    date: currentTime.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    })
+  }), [currentTime]);
 
-  // Update time every minute
+  // Update time only every minute instead of every second
   useEffect(() => {
+    // Set initial time
+    setCurrentTime(new Date());
+    
+    // Update every minute (60 seconds)
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000);
@@ -26,65 +41,66 @@ export const KioskNavbar = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Idle detection
-  useEffect(() => {
-    const resetIdleTimer = () => {
-      if (idleTimer) {
-        clearTimeout(idleTimer);
-      }
-      
-      const timer = setTimeout(() => {
-        // Navigate to idle page after 30 seconds of inactivity
-        window.location.href = '/idle';
-      }, 30000);
-      
-      setIdleTimer(timer);
-    };
-
-    // Events that reset the idle timer
-    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+  // Optimized idle detection with useCallback
+  const handleUserActivity = useCallback(() => {
+    // Reset idle timer - this gets called frequently but doesn't update state
+    if (window.kioskIdleTimer) {
+      clearTimeout(window.kioskIdleTimer);
+    }
     
-    events.forEach(event => {
-      document.addEventListener(event, resetIdleTimer, true);
-    });
+    window.kioskIdleTimer = setTimeout(() => {
+      // Only navigate if we're not already on the idle page
+      if (window.location.pathname !== '/idle') {
+        window.location.href = '/idle';
+      }
+    }, 30000); // 30 seconds
+  }, []);
 
+  // Set up idle detection with optimized event handling
+  useEffect(() => {
     // Initialize timer
-    resetIdleTimer();
+    handleUserActivity();
+
+    // Events that reset the idle timer - use passive listeners for better performance
+    const events = [
+      'mousedown', 
+      'mousemove', 
+      'keypress', 
+      'scroll', 
+      'touchstart', 
+      'click'
+    ];
+    
+    // Use passive event listeners where possible for better performance
+    events.forEach(event => {
+      document.addEventListener(event, handleUserActivity, { 
+        passive: true,
+        capture: false 
+      });
+    });
 
     return () => {
       events.forEach(event => {
-        document.removeEventListener(event, resetIdleTimer, true);
+        document.removeEventListener(event, handleUserActivity);
       });
-      if (idleTimer) {
-        clearTimeout(idleTimer);
+      if (window.kioskIdleTimer) {
+        clearTimeout(window.kioskIdleTimer);
       }
     };
-  }, [idleTimer]);
+  }, [handleUserActivity]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
+  // Memoize navigation items to prevent unnecessary re-renders
+  const navigationItems = useMemo(() => [
+    { href: "/", label: "🏠 Home", variant: "light" as const },
+    { href: "/categories", label: "📋 Categories", variant: "light" as const },
+    { href: "/specials", label: "⭐ Specials", variant: "light" as const }
+  ], []);
 
   return (
     <HeroUINavbar 
       maxWidth="full" 
       position="sticky"
-      classNames={{
-        base: "bg-golden-orange border-b-4 border-deep-amber shadow-lg",
-        wrapper: "px-6",
-      }}
+      className="bg-golden-orange border-b-4 border-deep-amber shadow-lg"
     >
       {/* Left side - Logo and Title */}
       <NavbarContent className="basis-1/3" justify="start">
@@ -102,41 +118,19 @@ export const KioskNavbar = () => {
       {/* Center - Navigation Buttons */}
       <NavbarContent className="basis-1/3" justify="center">
         <div className="flex gap-4">
-          <NavbarItem>
-            <Button
-              as={NextLink}
-              href="/"
-              size="lg"
-              variant="ghost"
-              className="text-chocolate-brown hover:bg-deep-amber/20 font-semibold text-lg px-6"
-            >
-              🏠 Home
-            </Button>
-          </NavbarItem>
-          <NavbarItem>
-            <Button
-              as={NextLink}
-              href="/categories"
-              size="lg"
-              variant="ghost"
-              className="text-chocolate-brown hover:bg-deep-amber/20 font-semibold text-lg px-6"
-            >
-              📋 Categories
-            </Button>
-          </NavbarItem>
-          <NavbarItem>
-            <Badge content="New!" color="danger" size="sm">
+          {navigationItems.map((item) => (
+            <NavbarItem key={item.href}>
               <Button
                 as={NextLink}
-                href="/specials"
+                href={item.href}
                 size="lg"
-                variant="ghost"
+                variant={item.variant}
                 className="text-chocolate-brown hover:bg-deep-amber/20 font-semibold text-lg px-6"
               >
-                ⭐ Specials
+                {item.label}
               </Button>
-            </Badge>
-          </NavbarItem>
+            </NavbarItem>
+          ))}
         </div>
       </NavbarContent>
 
@@ -144,15 +138,18 @@ export const KioskNavbar = () => {
       <NavbarContent className="basis-1/3" justify="end">
         <NavbarItem className="hidden sm:flex">
           <div className="text-right text-chocolate-brown">
-            <div className="font-bold text-xl">{formatTime(currentTime)}</div>
-            <div className="text-sm opacity-70">{formatDate(currentTime)}</div>
+            <div className="font-bold text-xl">{formattedTime.time}</div>
+            <div className="text-sm opacity-70">{formattedTime.date}</div>
           </div>
         </NavbarItem>
         <NavbarItem>
           <Button
             size="lg"
-            variant="solid"
             className="bg-deep-amber hover:bg-chocolate-brown text-cream-white font-bold px-6"
+            onClick={() => {
+              // Handle help action - could open modal, navigate to help page, etc.
+              console.log('Help requested');
+            }}
           >
             🆘 Help
           </Button>
@@ -161,3 +158,10 @@ export const KioskNavbar = () => {
     </HeroUINavbar>
   );
 };
+
+// Extend window type for TypeScript
+declare global {
+  interface Window {
+    kioskIdleTimer?: NodeJS.Timeout;
+  }
+}
