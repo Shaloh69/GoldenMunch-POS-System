@@ -1,198 +1,148 @@
-"use client";
+"use client"
 
-import React, { useState, useEffect } from 'react';
+
+import { useState, useEffect } from 'react';
 import { Button } from '@heroui/button';
 import { Card, CardBody, CardHeader } from '@heroui/card';
+import { Chip } from '@heroui/chip';
 import { Spinner } from '@heroui/spinner';
 import { Badge } from '@heroui/badge';
-import { Divider } from '@heroui/divider';
-import { Image } from '@heroui/image';
 
 interface MenuItem {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
-  image: string;
   category: string;
-  isAvailable: boolean;
-  isPopular?: boolean;
+  image: string;
+  available: boolean;
+  popular: boolean;
 }
 
-interface MenuCategory {
+interface Category {
+  id: string;
   name: string;
-  icon: string;
-  items: MenuItem[];
+  emoji: string;
+  color: string;
 }
+
+const categories: Category[] = [
+  { id: "all", name: "All Items", emoji: "🍽️", color: "golden-orange" },
+  { id: "cakes", name: "Cakes", emoji: "🍰", color: "golden-orange" },
+  { id: "pastries", name: "Pastries", emoji: "🥐", color: "deep-amber" },
+  { id: "cookies", name: "Cookies", emoji: "🍪", color: "caramel-beige" },
+  { id: "beverages", name: "Beverages", emoji: "☕", color: "mint-green" },
+  { id: "sandwiches", name: "Sandwiches", emoji: "🥪", color: "chocolate-brown" },
+];
+
+// Mock data for when server is not available
+const mockMenuItems: MenuItem[] = [
+  {
+    id: "1",
+    name: "Classic Chocolate Cake",
+    description: "Rich, moist chocolate cake with cream frosting",
+    price: 24.99,
+    category: "cakes",
+    image: "🍰",
+    available: true,
+    popular: true,
+  },
+  {
+    id: "2",
+    name: "Fresh Croissant",
+    description: "Buttery, flaky pastry baked fresh daily",
+    price: 3.49,
+    category: "pastries",
+    image: "🥐",
+    available: true,
+    popular: false,
+  },
+  {
+    id: "3",
+    name: "Chocolate Chip Cookies",
+    description: "Warm, gooey cookies with premium chocolate chips",
+    price: 2.99,
+    category: "cookies",
+    image: "🍪",
+    available: true,
+    popular: true,
+  },
+  {
+    id: "4",
+    name: "Artisan Coffee",
+    description: "Freshly roasted coffee beans, perfectly brewed",
+    price: 4.99,
+    category: "beverages",
+    image: "☕",
+    available: true,
+    popular: false,
+  },
+  {
+    id: "5",
+    name: "Gourmet Club Sandwich",
+    description: "Triple-decker with premium meats and fresh vegetables",
+    price: 12.99,
+    category: "sandwiches",
+    image: "🥪",
+    available: false,
+    popular: false,
+  },
+];
 
 export default function MenuPage() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [menuData, setMenuData] = useState<MenuCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [cart, setCart] = useState<{ [key: number]: number }>({});
-
-  // Mock data for demonstration while server is not ready
-  const mockMenuData: MenuCategory[] = [
-    {
-      name: 'Cakes',
-      icon: '🍰',
-      items: [
-        {
-          id: 1,
-          name: 'Chocolate Delight Cake',
-          description: 'Rich chocolate cake with layers of creamy chocolate frosting',
-          price: 24.99,
-          image: '/api/placeholder/300/200',
-          category: 'Cakes',
-          isAvailable: true,
-          isPopular: true
-        },
-        {
-          id: 2,
-          name: 'Vanilla Dream Cake',
-          description: 'Classic vanilla sponge with vanilla buttercream',
-          price: 22.99,
-          image: '/api/placeholder/300/200',
-          category: 'Cakes',
-          isAvailable: true
-        },
-        {
-          id: 3,
-          name: 'Strawberry Bliss Cake',
-          description: 'Fresh strawberry cake with whipped cream and real strawberries',
-          price: 26.99,
-          image: '/api/placeholder/300/200',
-          category: 'Cakes',
-          isAvailable: true,
-          isPopular: true
-        }
-      ]
-    },
-    {
-      name: 'Cupcakes',
-      icon: '🧁',
-      items: [
-        {
-          id: 4,
-          name: 'Red Velvet Cupcake',
-          description: 'Moist red velvet with cream cheese frosting',
-          price: 4.99,
-          image: '/api/placeholder/300/200',
-          category: 'Cupcakes',
-          isAvailable: true,
-          isPopular: true
-        },
-        {
-          id: 5,
-          name: 'Lemon Zest Cupcake',
-          description: 'Fresh lemon cupcake with tangy lemon glaze',
-          price: 4.50,
-          image: '/api/placeholder/300/200',
-          category: 'Cupcakes',
-          isAvailable: false
-        },
-        {
-          id: 6,
-          name: 'Chocolate Chip Cupcake',
-          description: 'Vanilla cupcake loaded with chocolate chips',
-          price: 4.75,
-          image: '/api/placeholder/300/200',
-          category: 'Cupcakes',
-          isAvailable: true
-        }
-      ]
-    },
-    {
-      name: 'Pastries',
-      icon: '🥐',
-      items: [
-        {
-          id: 7,
-          name: 'Fresh Croissant',
-          description: 'Buttery, flaky croissant baked fresh daily',
-          price: 3.99,
-          image: '/api/placeholder/300/200',
-          category: 'Pastries',
-          isAvailable: true
-        },
-        {
-          id: 8,
-          name: 'Danish Pastry',
-          description: 'Sweet Danish with your choice of fruit topping',
-          price: 4.25,
-          image: '/api/placeholder/300/200',
-          category: 'Pastries',
-          isAvailable: true,
-          isPopular: true
-        }
-      ]
-    },
-    {
-      name: 'Cookies',
-      icon: '🍪',
-      items: [
-        {
-          id: 9,
-          name: 'Chocolate Chip Cookie',
-          description: 'Classic chocolate chip cookie, soft and chewy',
-          price: 2.99,
-          image: '/api/placeholder/300/200',
-          category: 'Cookies',
-          isAvailable: true,
-          isPopular: true
-        },
-        {
-          id: 10,
-          name: 'Oatmeal Raisin Cookie',
-          description: 'Hearty oatmeal cookie with plump raisins',
-          price: 2.75,
-          image: '/api/placeholder/300/200',
-          category: 'Cookies',
-          isAvailable: true
-        }
-      ]
-    }
-  ];
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [cart, setCart] = useState<{[key: string]: number}>({});
 
   // Simulate API call
   useEffect(() => {
-    const fetchMenuData = async () => {
-      setIsLoading(true);
+    const fetchMenuItems = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // In a real app, this would be an actual API call
-        // const response = await fetch('/api/menu');
-        // const data = await response.json();
+        // Simulate random server availability (80% success rate)
+        if (Math.random() > 0.8) {
+          throw new Error("Server temporarily unavailable");
+        }
         
-        // For now, use mock data
-        setMenuData(mockMenuData);
-      } catch (error) {
-        console.error('Error fetching menu data:', error);
-        setMenuData([]); // Set empty array on error
+        // In real app, this would be: const response = await fetch('/api/menu');
+        setMenuItems(mockMenuItems);
+      } catch (err) {
+        console.warn("Server not available, using mock data:", err);
+        setMenuItems(mockMenuItems);
+        setError("Using offline menu (server unavailable)");
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     };
 
-    fetchMenuData();
+    fetchMenuItems();
   }, []);
 
-  const categories = ['All', ...menuData.map(cat => cat.name)];
+  // Filter items by category
+  useEffect(() => {
+    if (selectedCategory === "all") {
+      setFilteredItems(menuItems);
+    } else {
+      setFilteredItems(menuItems.filter(item => item.category === selectedCategory));
+    }
+  }, [menuItems, selectedCategory]);
 
-  const filteredItems = selectedCategory === 'All' 
-    ? menuData.flatMap(cat => cat.items)
-    : menuData.find(cat => cat.name === selectedCategory)?.items || [];
-
-  const addToCart = (itemId: number) => {
+  const addToCart = (itemId: string) => {
     setCart(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || 0) + 1
     }));
   };
 
-  const removeFromCart = (itemId: number) => {
+  const removeFromCart = (itemId: string) => {
     setCart(prev => ({
       ...prev,
       [itemId]: Math.max(0, (prev[itemId] || 0) - 1)
@@ -204,317 +154,182 @@ export default function MenuPage() {
   };
 
   const getTotalPrice = () => {
-    let total = 0;
-    Object.entries(cart).forEach(([itemId, count]) => {
-      const item = menuData.flatMap(cat => cat.items).find(item => item.id === parseInt(itemId));
-      if (item) {
-        total += item.price * count;
-      }
-    });
-    return total;
+    return Object.entries(cart).reduce((total, [itemId, count]) => {
+      const item = menuItems.find(i => i.id === itemId);
+      return total + (item ? item.price * count : 0);
+    }, 0);
   };
 
-  // Loading State
-  if (isLoading) {
+  if (loading) {
     return (
-      <div 
-        className="min-h-screen flex flex-col items-center justify-center"
-        style={{ backgroundColor: '#FFF8F0' }}
-      >
+      <div className="min-h-screen bg-gradient-to-br from-cream-white to-caramel-beige flex items-center justify-center">
         <div className="text-center">
-          <div className="text-6xl mb-4">🍰</div>
-          <h1 
-            className="text-4xl font-bold mb-4"
-            style={{ color: '#F9A03F' }}
-          >
-            Golden Munch
-          </h1>
           <Spinner 
             size="lg" 
             color="warning"
-            label="Loading delicious treats..."
             classNames={{
-              label: "text-xl",
-              circle1: "border-b-[#F9A03F]",
-              circle2: "border-b-[#D97706]"
+              wrapper: "w-20 h-20"
             }}
           />
-          <p 
-            className="mt-4 text-lg"
-            style={{ color: '#4B2E2E' }}
-          >
-            Preparing your menu...
+          <p className="text-2xl text-chocolate-brown mt-4 font-semibold">
+            Loading delicious menu...
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  // No Data State
-  if (!isLoading && menuData.length === 0) {
-    return (
-      <div 
-        className="min-h-screen flex flex-col items-center justify-center text-center px-8"
-        style={{ backgroundColor: '#FFF8F0' }}
-      >
-        <div className="max-w-md">
-          <div className="text-8xl mb-6">😔</div>
-          <h1 
-            className="text-4xl font-bold mb-4"
-            style={{ color: '#F9A03F' }}
-          >
-            Menu Temporarily Unavailable
-          </h1>
-          <p 
-            className="text-xl mb-8"
-            style={{ color: '#4B2E2E' }}
-          >
-            We're sorry, but our menu is currently being updated. Please try again in a few moments.
-          </p>
-          <div className="space-y-4">
-            <Button
-              size="lg"
-              radius="full"
-              style={{ 
-                backgroundColor: '#F9A03F', 
-                color: '#FFF8F0',
-                fontWeight: 'bold'
-              }}
-              onPress={() => window.location.reload()}
-            >
-              🔄 Retry
-            </Button>
-            <Button
-              size="lg"
-              radius="full"
-              variant="bordered"
-              style={{ 
-                borderColor: '#D97706', 
-                color: '#D97706',
-                fontWeight: 'bold'
-              }}
-              onPress={() => window.location.href = '/idle'}
-            >
-              🏠 Return to Home
-            </Button>
-          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div 
-      className="min-h-screen"
-      style={{ backgroundColor: '#FFF8F0' }}
-    >
+    <div className="min-h-screen bg-gradient-to-br from-cream-white to-caramel-beige">
       {/* Header */}
-      <div 
-        className="sticky top-0 z-40 px-6 py-4 shadow-lg"
-        style={{ backgroundColor: '#F9A03F' }}
-      >
-        <div className="flex justify-between items-center max-w-7xl mx-auto">
+      <div className="bg-golden-orange text-chocolate-brown p-6 shadow-lg">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold" style={{ color: '#FFF8F0' }}>
-              🍰 Golden Munch Menu
-            </h1>
-            <p className="text-lg opacity-90" style={{ color: '#FFF8F0' }}>
-              Freshly baked, made with love
-            </p>
+            <h1 className="text-4xl font-bold">🍰 Golden Munch</h1>
+            <p className="text-lg opacity-80">Fresh. Delicious. Made with Love.</p>
           </div>
           
           {/* Cart Summary */}
           {getTotalItems() > 0 && (
-            <Badge 
-              content={getTotalItems()} 
-              color="danger" 
-              size="lg"
-              classNames={{
-                badge: "text-white font-bold"
-              }}
-            >
+            <Badge content={getTotalItems()} color="danger" size="lg">
               <Button
                 size="lg"
-                radius="full"
-                style={{ 
-                  backgroundColor: '#4B2E2E', 
-                  color: '#FFF8F0',
-                  fontWeight: 'bold'
-                }}
-                onPress={() => alert(`Cart Total: $${getTotalPrice().toFixed(2)}\n\nItems:\n${Object.entries(cart).map(([itemId, count]) => {
-                  const item = menuData.flatMap(cat => cat.items).find(item => item.id === parseInt(itemId));
-                  return item ? `${item.name} x${count} - $${(item.price * count).toFixed(2)}` : '';
-                }).filter(Boolean).join('\n')}`)}
+                className="bg-deep-amber hover:bg-chocolate-brown text-cream-white font-bold text-xl px-8"
               >
-                🛒 View Cart - ${getTotalPrice().toFixed(2)}
+                🛒 Cart - ${getTotalPrice().toFixed(2)}
               </Button>
             </Badge>
           )}
         </div>
-      </div>
-
-      {/* Category Tabs */}
-      <div 
-        className="sticky top-20 z-30 px-6 py-4 shadow-md"
-        style={{ backgroundColor: '#E6C89C' }}
-      >
-        <div className="flex space-x-2 overflow-x-auto max-w-7xl mx-auto">
-          {categories.map((category) => (
-            <Button
-              key={category}
-              size="md"
-              radius="full"
-              variant={selectedCategory === category ? 'solid' : 'bordered'}
-              style={selectedCategory === category ? {
-                backgroundColor: '#D97706',
-                color: '#FFF8F0',
-                borderColor: '#D97706'
-              } : {
-                borderColor: '#D97706',
-                color: '#D97706',
-                backgroundColor: 'transparent'
-              }}
-              onPress={() => setSelectedCategory(category)}
-              className="whitespace-nowrap font-semibold"
-            >
-              {category === 'All' ? '🍽️' : menuData.find(cat => cat.name === category)?.icon} {category}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* Menu Items */}
-      <div className="px-6 py-8 max-w-7xl mx-auto">
-        {filteredItems.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 
-              className="text-2xl font-bold mb-2"
-              style={{ color: '#4B2E2E' }}
-            >
-              No items in this category
-            </h3>
-            <p 
-              className="text-lg"
-              style={{ color: '#4B2E2E', opacity: 0.7 }}
-            >
-              Try selecting a different category
+        
+        {/* Error Banner */}
+        {error && (
+          <div className="mt-4 bg-mint-green/20 border border-mint-green rounded-lg p-3">
+            <p className="text-chocolate-brown">
+              ⚠️ {error}
             </p>
           </div>
+        )}
+      </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Category Filter */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-chocolate-brown mb-4">Categories</h2>
+          <div className="flex flex-wrap gap-3">
+            {categories.map((category) => (
+              <Button
+                key={category.id}
+                size="lg"
+                variant={selectedCategory === category.id ? "solid" : "bordered"}
+                className={`
+                  ${selectedCategory === category.id 
+                    ? 'bg-golden-orange text-chocolate-brown border-golden-orange' 
+                    : 'border-golden-orange text-chocolate-brown hover:bg-golden-orange/10'
+                  }
+                  font-semibold text-lg px-6 py-3
+                `}
+                onClick={() => setSelectedCategory(category.id)}
+              >
+                {category.emoji} {category.name}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Menu Items */}
+        {filteredItems.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-8xl mb-4">🍽️</div>
+            <h3 className="text-3xl font-bold text-chocolate-brown mb-2">
+              No items available
+            </h3>
+            <p className="text-xl text-chocolate-brown/70">
+              {selectedCategory === "all" 
+                ? "Our menu is being updated. Please check back soon!"
+                : "No items in this category right now."
+              }
+            </p>
+            <Button
+              size="lg"
+              className="mt-6 bg-golden-orange text-chocolate-brown font-bold"
+              onClick={() => setSelectedCategory("all")}
+            >
+              View All Categories
+            </Button>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.map((item) => (
               <Card 
-                key={item.id} 
-                className="shadow-lg hover:shadow-xl transition-shadow duration-300"
-                style={{ backgroundColor: '#FFFFFF' }}
+                key={item.id}
+                className={`
+                  ${item.available ? 'hover:scale-105' : 'opacity-60'}
+                  transition-all duration-300 shadow-lg border-2 border-golden-orange/20
+                  ${item.available ? 'hover:shadow-2xl hover:border-golden-orange' : ''}
+                `}
               >
-                <CardHeader className="pb-2">
+                <CardHeader className="flex flex-col items-start px-6 pt-6 pb-0">
                   <div className="flex justify-between items-start w-full">
-                    <div className="flex-1">
-                      <h3 
-                        className="text-xl font-bold"
-                        style={{ color: '#4B2E2E' }}
-                      >
-                        {item.name}
-                      </h3>
-                      {item.isPopular && (
-                        <Badge 
-                          color="warning" 
-                          variant="flat" 
-                          size="sm"
-                          className="mt-1"
-                        >
+                    <div className="text-6xl mb-2">{item.image}</div>
+                    <div className="flex flex-col gap-1">
+                      {item.popular && (
+                        <Chip color="warning" size="sm" variant="flat">
                           🔥 Popular
-                        </Badge>
+                        </Chip>
+                      )}
+                      {!item.available && (
+                        <Chip color="danger" size="sm" variant="flat">
+                          Sold Out
+                        </Chip>
                       )}
                     </div>
-                    <div 
-                      className="text-2xl font-bold"
-                      style={{ color: '#F9A03F' }}
-                    >
-                      ${item.price}
-                    </div>
                   </div>
+                  <h3 className="text-xl font-bold text-chocolate-brown">{item.name}</h3>
+                  <p className="text-chocolate-brown/70 text-sm">{item.description}</p>
                 </CardHeader>
-
-                <CardBody className="pt-0">
-                  <div className="mb-4">
-                    <Image
-                      src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICAgIDxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjRTZDODlDIi8+CiAgICA8dGV4dCB4PSIxNTAiIHk9IjkwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LXNpemU9IjQwIj7wn46yPC90ZXh0PgogICAgPHRleHQgeD0iMTUwIiB5PSIxMzAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiM0QjJFMkUiPkRlbGljaW91cyBUcmVhdDwvdGV4dD4KPC9zdmc+"
-                      alt={item.name}
-                      width={300}
-                      height={200}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
+                
+                <CardBody className="px-6 pt-2">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-2xl font-bold text-deep-amber">
+                      ${item.price.toFixed(2)}
+                    </span>
                   </div>
                   
-                  <p 
-                    className="text-sm mb-4"
-                    style={{ color: '#4B2E2E', opacity: 0.8 }}
-                  >
-                    {item.description}
-                  </p>
-
-                  <Divider className="my-4" />
-
-                  {!item.isAvailable ? (
-                    <Button
-                      size="lg"
-                      radius="full"
-                      disabled
-                      className="w-full font-bold"
-                      style={{ 
-                        backgroundColor: '#e0e0e0', 
-                        color: '#888888'
-                      }}
-                    >
-                      Currently Unavailable
-                    </Button>
-                  ) : cart[item.id] > 0 ? (
-                    <div className="flex items-center justify-between">
+                  {item.available ? (
+                    <div className="flex items-center gap-2">
+                      {cart[item.id] > 0 && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="bordered"
+                            className="border-deep-amber text-deep-amber min-w-unit-10"
+                            onClick={() => removeFromCart(item.id)}
+                          >
+                            -
+                          </Button>
+                          <span className="text-chocolate-brown font-bold min-w-8 text-center">
+                            {cart[item.id]}
+                          </span>
+                        </>
+                      )}
                       <Button
-                        size="md"
-                        radius="full"
-                        variant="bordered"
-                        style={{ 
-                          borderColor: '#D97706', 
-                          color: '#D97706'
-                        }}
-                        onPress={() => removeFromCart(item.id)}
+                        size={cart[item.id] > 0 ? "sm" : "md"}
+                        className={`
+                          ${cart[item.id] > 0 ? 'min-w-unit-10' : 'w-full'}
+                          bg-golden-orange hover:bg-deep-amber text-chocolate-brown font-bold
+                        `}
+                        onClick={() => addToCart(item.id)}
                       >
-                        ➖
-                      </Button>
-                      <span 
-                        className="text-xl font-bold px-4"
-                        style={{ color: '#4B2E2E' }}
-                      >
-                        {cart[item.id]}
-                      </span>
-                      <Button
-                        size="md"
-                        radius="full"
-                        style={{ 
-                          backgroundColor: '#D97706', 
-                          color: '#FFF8F0'
-                        }}
-                        onPress={() => addToCart(item.id)}
-                      >
-                        ➕
+                        {cart[item.id] > 0 ? '+' : '🛒 Add to Cart'}
                       </Button>
                     </div>
                   ) : (
                     <Button
-                      size="lg"
-                      radius="full"
-                      className="w-full font-bold"
-                      style={{ 
-                        backgroundColor: '#F9A03F', 
-                        color: '#FFF8F0'
-                      }}
-                      onPress={() => addToCart(item.id)}
+                      disabled
+                      className="w-full bg-gray-300 text-gray-500"
                     >
-                      🛒 Add to Cart
+                      Currently Unavailable
                     </Button>
                   )}
                 </CardBody>
@@ -522,21 +337,21 @@ export default function MenuPage() {
             ))}
           </div>
         )}
-      </div>
 
-      {/* Floating Back Button */}
-      <Button
-        size="lg"
-        radius="full"
-        className="fixed bottom-6 left-6 shadow-lg font-bold"
-        style={{ 
-          backgroundColor: '#4B2E2E', 
-          color: '#FFF8F0'
-        }}
-        onPress={() => window.location.href = '/idle'}
-      >
-        🏠 Back to Home
-      </Button>
+        {/* Floating Cart Button */}
+        {getTotalItems() > 0 && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Badge content={getTotalItems()} color="danger" size="lg">
+              <Button
+                size="lg"
+                className="bg-deep-amber hover:bg-chocolate-brown text-cream-white font-bold text-xl px-8 py-4 rounded-full shadow-2xl animate-bounce-slow"
+              >
+                🛒 Checkout - ${getTotalPrice().toFixed(2)}
+              </Button>
+            </Badge>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

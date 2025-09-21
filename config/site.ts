@@ -2,42 +2,60 @@ export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
   name: "Golden Munch Kiosk",
-  description: "Freshly baked goods and delicious treats, made with love.",
+  description: "Delicious treats at your fingertips - Order with ease from our interactive kiosk system.",
   navItems: [
     {
-      label: "Home",
-      href: "/idle",
+      label: "Menu",
+      href: "/",
     },
     {
-      label: "Menu",
-      href: "/menu",
+      label: "Categories",
+      href: "/categories",
+    },
+    {
+      label: "Specials",
+      href: "/specials",
     },
     {
       label: "About",
       href: "/about",
     },
   ],
-  navMenuItems: [
+  categories: [
     {
-      label: "Menu",
-      href: "/menu",
+      id: "cakes",
+      name: "Cakes",
+      emoji: "🍰",
+      color: "golden-orange",
     },
     {
-      label: "Home",
-      href: "/idle",
+      id: "pastries",
+      name: "Pastries",
+      emoji: "🥐",
+      color: "deep-amber",
     },
     {
-      label: "About",
-      href: "/about",
+      id: "cookies",
+      name: "Cookies",
+      emoji: "🍪",
+      color: "caramel-beige",
     },
     {
-      label: "Contact",
-      href: "/contact",
+      id: "beverages",
+      name: "Beverages",
+      emoji: "☕",
+      color: "mint-green",
+    },
+    {
+      id: "sandwiches",
+      name: "Sandwiches",
+      emoji: "🥪",
+      color: "chocolate-brown",
     },
   ],
+  idleTimeout: 30000, // 30 seconds of inactivity triggers idle screen
   links: {
-    github: "https://github.com/golden-munch/kiosk",
-    docs: "https://golden-munch.com/docs",
-    contact: "mailto:hello@golden-munch.com",
+    support: "#",
+    admin: "/admin",
   },
 };
